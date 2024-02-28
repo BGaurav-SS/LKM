@@ -41,35 +41,44 @@ dev_release(struct inode *pInode, struct file *pFile){
 }
 
 /*  Called when the data is sent from device to the user space.
-//  pFile:  pointer to the file
-//  buf:    buffer (in userspace) which stores the data read. 
+    pFile:  pointer to the file
+    uBuffer: buffer (in userspace) which stores the data read. 
             The device driver reads from the hardware into kernel 
             space buffer first. Then this buffer is copied into this userspace buffer. 
-//  length: length of buffer
-//  offset: sets the cursor position in the file to read into. 
+            It is a pointer to a buffer that is already allocated in userspace
+            by the application that initiated the read operation.  
+    length: length of user-space buffer
+    offset: sets the cursor position in the file to read into. 
 */
 static ssize_t dev_read(struct file *pFile, char *uBuffer, size_t length, loff_t *offset){
     int nError; 
 
     //copies contents of kernel space buffer (kBuffer) to user-space buffer (uBuffer)
     //Returns the no. of bytes that could not be copied. returns 0 ==> success.
-    nError = copy_to_user (uBuffer, kBuffer, messageLength);
-    
+    nError = copy_to_user (uBuffer, kBuffer, messageLength);    
     if (nError == 0){
         printk (KERN_INFO "Sent %d characters to user-space.\n", messageLength);
         return 0;
     }
-
     else{
         printk(KERN_INFO "Failed to send %d characters to user-space.\n", nError);
-        return EFAULT;
+        return -EFAULT;
     }
-
-
 }
 
-//  Called when the data is sent from user space to the device.
-dev_write()
+/*  Called when the data is sent from user-space to kernel space.
+    pFile:  pointer to the file
+    uBuffer: buffer (in userspace) which has the data to be sent. 
+            sprintf function copies the contents of uBuffer into kBuffer.  
+    length: length of user space buffer
+    offset: sets the cursor position in the file to read into. 
+*/
+static ssize_t dev_write(struct file *pFile, char *uBuffer, size_t length, loff_t *offset){    
+    sprintf(kBuffer, "%s", uBuffer);
+    messageLength = strlen (kBuffer);
+    printk (KERN_INFO "Received %zu characters from user-space buffer.", length);
+    return 0;
+}
 
 /*  file_operations is a structure defined in /linux/fs.h
     The structure contains function pointers related to different operations that
