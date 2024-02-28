@@ -21,8 +21,9 @@ MODULE_VERSION ("One and Only");
 
 
 int nOpenCount=0, messageLength=0;
+int majNumber, minNumber;
 char kBuffer[256];
-float
+
 
 
 //  Called every time the device is opened from user space.
@@ -35,20 +36,20 @@ static int dev_open(struct inode *inodep, struct file *filep){
 }
 
 //  Called when the device is closed from the user space.
-dev_release(struct inode *pInode, struct file *pFile){
+static int dev_release(struct inode *pInode, struct file *pFile){
     printk(KERN_LOG "Device closed successfully.");
     return 0;
 }
 
 /*  Called when the data is sent from device to the user space.
-    pFile:  pointer to the file
-    uBuffer: buffer (in userspace) which stores the data read. 
-            The device driver reads from the hardware into kernel 
-            space buffer first. Then this buffer is copied into this userspace buffer. 
-            It is a pointer to a buffer that is already allocated in userspace
-            by the application that initiated the read operation.  
-    length: length of user-space buffer
-    offset: sets the cursor position in the file to read into. 
+    @param pFile:  pointer to the file
+    @param uBuffer: buffer (in userspace) which stores the data read. 
+                The device driver reads from the hardware into kernel 
+                space buffer first. Then this buffer is copied into this userspace buffer. 
+                It is a pointer to a buffer that is already allocated in userspace
+                by the application that initiated the read operation.  
+    @param length of user-space buffer
+    @param offset: sets the cursor position in the file to read into. 
 */
 static ssize_t dev_read(struct file *pFile, char *uBuffer, size_t length, loff_t *offset){
     int nError; 
@@ -67,11 +68,11 @@ static ssize_t dev_read(struct file *pFile, char *uBuffer, size_t length, loff_t
 }
 
 /*  Called when the data is sent from user-space to kernel space.
-    pFile:  pointer to the file
-    uBuffer: buffer (in userspace) which has the data to be sent. 
-            sprintf function copies the contents of uBuffer into kBuffer.  
-    length: length of user space buffer
-    offset: sets the cursor position in the file to read into. 
+    @param pFile:  pointer to the file
+    @param uBuffer: buffer (in userspace) which has the data to be sent. 
+                sprintf function copies the contents of uBuffer into kBuffer.  
+    @param length: length of user space buffer
+    @param offset: sets the cursor position in the file to read into. 
 */
 static ssize_t dev_write(struct file *pFile, char *uBuffer, size_t length, loff_t *offset){    
     sprintf(kBuffer, "%s", uBuffer);
@@ -94,6 +95,22 @@ static struct file_operations fops = {
 
 
 static int __init initFunction(void){
+    printk (KERN _INFO "Initializing the character device driver module\n");
+    
+    //int register_chrdev(uint major, uint baseminor, uint count, 
+    //                    char *name, struct file_operations *fops)
+    //To allocate minor numbers for @count devices starting from @baseminor
+
+    //int register_chrdev(uint major, char *name, struct file_operations *fops) 
+    //For single device.
+    majNumber = register_chrdev(0, DEVICE_NAME, &fops);
+    if (majNumber < 0){
+        printk(KERN_INFO "Failed during registration of major number.\n");
+        return majNumber;
+    }
+    printk(KERN_INFO "Successfully registered the device. Major:Minor=%d:%d", majNumber>>20, majNumber&0xfffff);
+    
+    else
     
     return 0;
 }
