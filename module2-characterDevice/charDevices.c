@@ -12,7 +12,7 @@
 #include <linux/errno.h>
 
 #define CLASS_NAME "testDevice"
-#define DEVICE_NAME "charDevice"
+#define DEVICE_NAME "testDeviceOne"
 
 MODULE_LICENSE ("GPL");
 MODULE_AUTHOR ("Gaurav Bhattarai");
@@ -23,6 +23,8 @@ MODULE_VERSION ("One and Only");
 int nOpenCount=0, messageLength=0;
 int majNumber, minNumber;
 char kBuffer[256];
+static ssize_t class *charDevClass = NULL;
+static ssize_t device *charDev = NULL;
 
 
 
@@ -109,8 +111,19 @@ static int __init initFunction(void){
         return majNumber;
     }
     printk(KERN_INFO "Successfully registered the device. Major:Minor=%d:%d", majNumber>>20, majNumber&0xfffff);
-    
-    else
+
+    //Registration of device class
+    //Create a struct class pointer (used in calls to device_create)
+    //Returns pointer on success, ERR_PTR on error.
+    charDevClass = class_create(THIS_MODULE, CLASS_NAME);
+    //IS_ERR checks if the pointer is an error pointer.
+    if (IS_ERR(charDevClass)){
+        unregister_chrdev(majNumber, DEVICE_NAME);
+        printk(KERN_INFO"Failed during registration of device class. Error code: %d.\n", PTR_ERR(charDevClass));
+        return PTR_ERR(charDevClass);
+    }
+    printk (KERN_INFO "Device class registered succsssfully: %s.\n", CLASS_NAME);
+
     
     return 0;
 }
