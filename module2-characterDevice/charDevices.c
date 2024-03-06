@@ -2,7 +2,6 @@
     interacted with via a character device file in userspace.
 */
 
-
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
@@ -26,7 +25,7 @@ int nOpenCount=0, messageLength=0;
 static dev_t deviceNumber;      
 static char kBuffer[256];
 static ssize_t class *charDevClass = NULL;
-static ssize_t device *charDev = NULL;
+static struct cdev charDev;
 
 
 
@@ -94,10 +93,10 @@ static struct file_operations fops = {
     .release = dev_release;
     .read = dev_read;
     .write = dev_write; 
-}
+};
 
 static int __init initFunction(void){
-    printk (KERN _INFO "Initializing the character device driver module\n");
+    printk (KERN _INFO "Initializing the character device driver module.\n");
     
     // int alloc_chrdev_region(dev_t * dev, unsigned baseminor, unsigned count, const char * name);
 	if( alloc_chrdev_region(&deviceNumber, 0, 1, DEVICE_NAME) < 0) {
@@ -110,29 +109,47 @@ static int __init initFunction(void){
     //Create a struct class pointer (used in calls to device_create)
     //Returns pointer on success, ERR_PTR on error.
     charDevClass = class_create(THIS_MODULE, CLASS_NAME);
-    //IS_ERR checks if the pointer is an error pointer.
+    //IS_ERR checks if the pointer is an error pointer. Returns non-zero if the passed pointer is error pointer.
+    //Reference: https://www.bhanage.com/2019/10/how-to-use-iserr-and-ptrerr-what-do.html
     if (IS_ERR(charDevClass)){
-        unregister_chrdev(majNumber, DEVICE_NAME);
         printk(KERN_INFO"Failed during registration of device class. Error code: %d.\n", PTR_ERR(charDevClass));
-        return PTR_ERR(charDevClass);
+        unregister_chrdev_region(deviceNumber, 1);
+        return -1;
     }
     printk (KERN_INFO "Device class registered succsssfully: %s.\n", CLASS_NAME);
 
 
-    //Register the device driver
-    //creates a device and registers it with sysfs
-    charDev = device_create(charDevClass, NULL, MKDEV(majNumber, minNumber), NULL, DEVICE_NAME);
+    //creates a device file and registers it with sysfs
+    //Given two integers, MKDEV combines them to create a dev_t variable that stores both Maj and Min number. Use it if you have can determine two integers.
+    //Reference: https://tuxthink.blogspot.com/2012/05/working-of-macros-majorminor-and-mkdev.html
+    charDev = device_create(charDevClass, NULL, /*MKDEV(majNumber, minNumber)*/deviceNumber, NULL, DEVICE_NAME);
     if (IS_ERR(charDev)){
         class_destroy(charDevClass);
-        unregister_chrdev(majNumber, DEVICE_NAME);
-        printk(KERN_INFO"Failed during registration of device driver. Error code: %d.\n", PTR_ERR(charDev));
-        return PTR_ERR(charDev);
+        unregister_chrdev_region(deviceNumber, 1);
+        printk(KERN_INFO"Failed during creation of device file. Error code: %d.\n", PTR_ERR(charDev));
+        return -1;
     }
-    printk (KERN_INFO "Device driver registered succsssfully: %s.\n", DEVICE_NAME);
+    printk (KERN_INFO "Device file created succsssfully: %s.\n", DEVICE_NAME);
 
-    
+    //Initialize device file
+    cdev_init(&charDev, &fops);
+
+    //Registration of device to the kernel
+    //int cdev_add(struct cdev * p, dev_t dev, unsigned count);
+    if ((cdev_add(&charDevice, 1)) < 0){
+        printk(KERN_INFO"Failed during the registration of device to the kernel.");
+        device_destroy(charDevClass, deviceNumber);
+        return -1;
+    }
+
     return 0;
 }
+
+errorClassRegistration:
+errorDeviceFileCreation:
+errorDeviceInitialization:
+errorDeviceRegistratio:
+
 
 static void __exit exitFunction(void){
 
