@@ -53,18 +53,20 @@ static int dev_release(struct inode *pInode, struct file *pFile){
                 space buffer first. Then this buffer is copied into this userspace buffer. 
                 It is a pointer to a buffer that is already allocated in userspace
                 by the application that initiated the read operation.  
-    @param length of user-space buffer
+    @param requested_length of data to read.
     @param offset: sets the cursor position in the file to read into. 
 */
-static ssize_t dev_read(struct file *pFile, char *uBuffer, size_t length, loff_t *offset){
-    int nError;
+static ssize_t dev_read(struct file *pFile, char *uBuffer, size_t requested_length, loff_t *offset){
+    int nError, nCopy;
 
     //copies contents of kernel space buffer (kBuffer) to user-space buffer (uBuffer)
-    //Returns the no. of bytes that could not be copied. returns 0 ==> success.
-    nError = copy_to_user (uBuffer, kBuffer, messageLength);    
+    //Returns the no. of bytes that could not be copied.
+    printk (KERN_INFO "Kernel requested to write %zu characters.", requested_length);
+    nCopy = min(requested_length, messageLength);
+    nError = copy_to_user (uBuffer, kBuffer, nCopy);
     if (nError == 0){
-        printk (KERN_INFO "Sent %d characters to user-space.\n", messageLength);
-        return 1;
+        printk (KERN_INFO "Sent %d characters to user-space.\n", nCopy);
+        return (nCopy - nError);
     }
     else{
         printk(KERN_INFO "Failed to send %d characters to user-space.\n", nError);
