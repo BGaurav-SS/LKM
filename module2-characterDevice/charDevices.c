@@ -27,7 +27,7 @@ static dev_t deviceNumber;
 static char kBuffer[256];
 static struct class *charDevClass = NULL;
 static struct device *pDevice;
-static struct cdev *pCharDevice;
+static struct cdev charDevice;
 
 
 
@@ -57,14 +57,14 @@ static int dev_release(struct inode *pInode, struct file *pFile){
     @param offset: sets the cursor position in the file to read into. 
 */
 static ssize_t dev_read(struct file *pFile, char *uBuffer, size_t length, loff_t *offset){
-    int nError; 
+    int nError;
 
     //copies contents of kernel space buffer (kBuffer) to user-space buffer (uBuffer)
     //Returns the no. of bytes that could not be copied. returns 0 ==> success.
     nError = copy_to_user (uBuffer, kBuffer, messageLength);    
     if (nError == 0){
         printk (KERN_INFO "Sent %d characters to user-space.\n", messageLength);
-        return 0;
+        return 1;
     }
     else{
         printk(KERN_INFO "Failed to send %d characters to user-space.\n", nError);
@@ -76,14 +76,23 @@ static ssize_t dev_read(struct file *pFile, char *uBuffer, size_t length, loff_t
     @param pFile:  pointer to the file
     @param uBuffer: buffer (in userspace) which has the data to be sent. 
                 sprintf function copies the contents of uBuffer into kBuffer.  
-    @param length: length of user space buffer
-    @param offset: sets the cursor position in the file to read into. 
+    @param requested_length: length of requested data transfer.
+    @param offset: sets the cursor position in the file to read into.
+    @return_val == length ==> copied requested no. of bytes
+    @ 0 < return_val < length ==> part of data is copied. System retries to write rest of the data. Requested length is decreased automatically.
+    @return_val == 0 ==> Nothing was written. System retries call to write function.
+    @return_val < 0 ==> Error occured.
 */
-static ssize_t dev_write(struct file *pFile, const char *uBuffer, size_t length, loff_t *offset){    
-    sprintf(kBuffer, "%s", uBuffer);
-    messageLength = strlen (kBuffer);
-    printk (KERN_INFO "Received %zu characters from user-space buffer.", length);
-    return 0;
+static ssize_t dev_write(struct file *pFile, const char *uBuffer, size_t requested_length, loff_t *offset){    
+    int nError, nCopy = 0;
+    printk (KERN_INFO "User requested to write %zu characters.", requested_length); 
+
+    nCopy = min(requested_length, sizeof(kBuffer));
+    nError = copy_from_user(kBuffer, uBuffer, nCopy);
+    messageLength = nCopy;
+
+    printk (KERN_INFO "Wrote %d characters from user-space buffer.", nCopy);
+    return (nCopy - nError);
 }
 
 /*  file_operations is a structure defined in /linux/fs.h
@@ -91,6 +100,7 @@ static ssize_t dev_write(struct file *pFile, const char *uBuffer, size_t length,
     can be performed in the file.
 */
 static struct file_operations fops = {
+    .owner = THIS_MODULE,
     .open = dev_open,
     .release = dev_release,
     .read = dev_read,
@@ -132,10 +142,10 @@ static int __init initFunction(void){
 
 
     //Initialize device file
-    cdev_init(pCharDevice, &fops);
+    cdev_init(&charDevice, &fops);
     //Registration of device to the kernel
     //int cdev_add(struct cdev * p, dev_t dev, unsigned count);
-    if ((cdev_add(pCharDevice, deviceNumber, 1)) < 0){
+    if ((cdev_add(&charDevice, deviceNumber, 1)) < 0){
         printk(KERN_INFO"Failed during the registration of device to the kernel.");
         goto errorDeviceRegistration;
     }
