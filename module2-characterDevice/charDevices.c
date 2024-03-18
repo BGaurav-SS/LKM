@@ -143,9 +143,9 @@ static int __init initFunction(void){
     printk (KERN_INFO "SUCCESS: Device file creation: %s.\n", DEVICE_NAME);
 
 
-    //Initialize device file
+    //Create device file
     cdev_init(&charDevice, &fops);
-    //Registration of device to the kernel
+    //Registration of device to the kernel and initialization.
     //int cdev_add(struct cdev * p, dev_t dev, unsigned count);
     if ((cdev_add(&charDevice, deviceNumber, 1)) < 0){
         printk(KERN_INFO"Failed during the registration of device to the kernel.");
