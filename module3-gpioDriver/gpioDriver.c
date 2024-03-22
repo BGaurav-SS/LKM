@@ -17,6 +17,8 @@
 #define DRIVER_NAME         "driverGpioControl"
 #define DEVICE_FILE_NAME    "deviceFileGpioControl"
 #define DEVICE_NAME         "deviceGpioControl"
+#define OUT_GPIO            4
+#define IN_GPIO             17
 
 MODULE_LICENSE ("GPL");
 MODULE_AUTHOR ("Gaurav Bhattarai");
@@ -31,6 +33,7 @@ static int      times = 0;
 static struct class*    pClassGpioControl;
 static struct device*   pDeviceGpioControl;
 static struct cdev      cdevGpioControl;
+
 
 static struct file_operations fops ={
     .owner = THIS_MODULE,
@@ -105,24 +108,64 @@ static int __init initFunction(void){
         printk(KERN_INFO"Failed during the registration of device to the kernel.");
         goto errorDeviceRegistration;
     }
-    //Initialize device file with the device numbers and class created
-    //Register this device to the kernel
+    printk (KERN_INFO "Success: Device file registration.\n");
+
+    //GPIOs must be allocated before using. 
+    /*
+        Parameters: int gpio -  required GPIO
+                    const char* label - associates a string with this gpio that can later appear in sysfs
+    */
+    if(gpio_request(OUT_GPIO, "RPi- Test Output GPIO") < 0){
+        printk("ERROR: Allocation of output GPIO %d.\n", OUT_GPIO);
+        goto errorGPIOAllocation
+    };
+
+    //Set gpio direction
+    if (gpio_direction_output(OUT_GPIO, 1) < 0){
+        printk("ERROR: Setting the direction of output GPIO %d.\n", OUT_GPIO);
+        goto errorSetDirectionOutput
+    }
+
+    if(gpio_request (IN_GPIO, "RPi- Test Input GPIO") < 0){
+        printk("ERROR: Allocation of input GPIO %d.\n", IN_GPIO);
+        goto errorSetDirectionOutput;
+    }
+
+    if (gpio_direction_input(IN_GPIO) < 0){
+        printk("ERROR: Setting the direction of input GPIO %d.\n", IN_GPIO);
+        goto errorSetDirectionInput
+    }
+
+
     return 0;
 
+    errorSetDirectionInput:
+        gpio_free(IN_GPIO);
+    errorSetDirectionOutput:
+        gpio_free(OUT_GPIO);
+    errorGPIOAllocation:
     errorDeviceRegistration:
         device_destroy(pClassGpioControl, deviceNumber);
-
     errorDeviceCreation:
         class_unregister(pClassGpioControl);
         class_destroy(pClassGpioControl);
-
     errorClassRegistration:
         unregister_chrdev_region(deviceNumber, 1);
+    
+    return -1;
 }
 
 static void __exit exitFunction(void){
-    printk(KERN_LOG"GPIO driver exited.\n");
+    gpio_set_value(OUT_GPIO, 0);
+    gpio_free(IN_GPIO);
+    gpio_free(OUT_GPIO);
+
+    cdev_del(&cdevGpioControl);
+    device_destroy(pClassGpioControl, deviceNumber);
+    class_destroy(pClassGpioControl);
     unregister_chrdev_region(deviceNumber, 1);
+
+    printk(KERN_LOG"GPIO driver exited.\n");
 
 }
 
