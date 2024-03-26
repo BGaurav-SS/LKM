@@ -54,23 +54,39 @@ static int deviceFileRelease(struct inode* pInode, struct file* pFile){
 }
 
 static int deviceFileWrite(struct file* pFile, const char* uBuffer, size_t requestedLength, loff_t* pOffset){
-    char requestedLedState[requestedLength]; 
+    char requestedLedState; 
     int nCopy, nError;
-    nError = copy_from_user(requestedLedState, uBuffer, (int)requestedLength);
+
+    nCopy = min (sizeof(char), (int)requestedLength);
+    nError = copy_from_user(&requestedLedState, uBuffer, nCopy);
     //Input 1 ==> ON, Input 0 ==> OFF
     switch (requestedLedState[0]){
         case '1':
             //Turn LED on
+            gpio_set_value(OUT_GPIO, 1);
+            break;
         case '0':
             //Turn LED off
+            gpio_set_value(OUT_GPIO, 0);
+            break;
         default:
             printk(KERN_INFO "Invalid input provided by user.\n");
+            break;
     }
-    return ((int)requestedLength - nError);
+    return (nCopy-nError);
 }
 
 static int deviceFileRead(struct file* pFile, const char* uBuffer, size_t requestedLength, loff_t* pOffset){
-    return ((int)requestedLength);
+    int nCopy, nError;
+    char ledStatus;
+
+    nCopy = min((int)requestedLength, sizeof(ledStatus));
+
+    ledStatus = (char)gpio_get_value(IN_GPIO);
+    printk(KERN_INFO"LED Current State: %c", ledStatus)
+    nError = copy_to_user(uBuffer, &ledStatus, nCopy);
+
+    return (nCopy-nError);
 }
 
 
